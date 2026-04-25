@@ -40,14 +40,16 @@ The application also includes:
 
 ### 👤 User Features
 
-* 🔍 Search available flights
-* 📅 Filter flights by date, route, etc.
-* 🎫 Book tickets
-* 💺 Seat Selection System (Real Time)
-* 📄 View booking details
-* 💳 Payment using RazorPay in various ways (Cards, Netbanking, Wallets, etc)
-* 🔐 User authentication (login/signup)
-
+- 💺 Real-time Seat Selection with locking mechanism
+- ✈️ Flight booking system across India
+- 💳 Razorpay Payment Integration (Card, Wallet, Netbanking)
+- 🎫 Boarding Pass Generation with QR Code
+- 🔐 User Authentication (Login/Register)
+- 🧳 My Trips Dashboard (Booking history)
+- 🛫 Web Check-in system using PNR
+- 📡 Flight Status Tracking
+- 🎨 Modern responsive UI
+  
 ### ⚙️ System Features
 
 * 📊 Manage flight data
