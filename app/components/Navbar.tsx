@@ -8,7 +8,7 @@ export default function Navbar() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
 
   const links = [
     ['/flights', 'Flights'],
@@ -26,8 +26,8 @@ export default function Navbar() {
 
   // Close dropdown on outside click
   useEffect(() => {
-    const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false)
       }
     }
