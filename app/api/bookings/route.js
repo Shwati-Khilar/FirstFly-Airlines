@@ -1,20 +1,3 @@
-// import mysql from 'mysql2/promise'
-
-// export async function GET() {
-//   const db = await mysql.createConnection({
-//     host: '127.0.0.1',
-//     port: 3307,
-//     user: 'appuser',
-//     password: '1234',
-//     database: 'flight_system'
-//   })
-
-//   const [rows] = await db.execute(
-//     "SELECT * FROM passengers ORDER BY id DESC"
-//   )
-
-//   return Response.json(rows)
-// }
 import db from '@/lib/db'
 
 export async function GET(req) {

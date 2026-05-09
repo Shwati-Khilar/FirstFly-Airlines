@@ -46,115 +46,116 @@ function BookPageInner() {
 
   // ── RAZORPAY PAYMENT FLOW ──
   const handlePayment = async () => {
-    if (!form.name || !form.age || !form.gender) { alert('Please fill in all passenger details'); return }
-    if (!selectedSeat) { alert('Please select a seat'); return }
+  if (!form.name || !form.age || !form.gender) { alert('Please fill in all passenger details'); return }
+  if (!selectedSeat) { alert('Please select a seat'); return }
 
-    setPaymentLoading(true)
+  setPaymentLoading(true)
 
-    try {
-      // Step 1: Create Razorpay order
-      const orderRes = await fetch('/api/payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: finalPrice })
+  const user = JSON.parse(localStorage.getItem('firstfly_user'))
+  if (!user) { alert('Please login first'); setPaymentLoading(false); return }
+
+  try {
+    // ── STEP 1: Lock the seat before payment ──
+    const lockRes = await fetch('/api/seats/lock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seatId: selectedSeat, userId: user.id, flightId: id })
+    })
+    const lockData = await lockRes.json()
+
+    if (lockData.error) {
+      alert('Seat just got taken! Please choose another seat.')
+      setPaymentLoading(false)
+      return
+    }
+
+    // ── STEP 2: Create Razorpay order ──
+    const orderRes = await fetch('/api/payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: finalPrice })
+    })
+    const order = await orderRes.json()
+    if (order.error) { alert('Payment initiation failed: ' + order.error); setPaymentLoading(false); return }
+
+    // ── STEP 3: Open Razorpay ──
+    if (!window.Razorpay) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+        script.onload = resolve
+        script.onerror = reject
+        document.body.appendChild(script)
       })
-      const order = await orderRes.json()
+    }
 
-      if (order.error) { alert('Payment initiation failed: ' + order.error); setPaymentLoading(false); return }
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      amount: order.amount,
+      currency: order.currency,
+      name: 'FirstFly Airways',
+      description: `Flight ${id} — Seat ${selectedSeat}`,
+      order_id: order.id,
+      prefill: { name: form.name },
+      theme: { color: '#1a1a1a' },
+      handler: async (response) => {
+        // ── STEP 4: Save booking ──
+        const bookRes = await fetch('/api/book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name,
+            age: form.age,
+            gender: form.gender,
+            travelClass: form.travelClass,
+            flight_id: id,
+            price: finalPrice,
+            seat: selectedSeat,
+            payment_id: response.razorpay_payment_id,
+            user_id: user.id
+          })
+        })
+        const data = await bookRes.json()
 
-      // Step 2: Open Razorpay checkout
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'FirstFly Airways',
-        description: `Flight ${id} — Seat ${selectedSeat}`,
-        order_id: order.id,
-        prefill: {
-          name: form.name,
-        },
-        theme: { color: '#1a1a1a' },
-        handler: async (response) => {
-          // Step 3: Payment success — save booking
-          // const bookRes = await fetch('/api/book', {
-          //   method: 'POST',
-          //   headers: { 'Content-Type': 'application/json' },
-          //   body: JSON.stringify({
-          //     ...form,
-          //     flight_id: id,
-          //     price: finalPrice,
-          //     seat: selectedSeat,
-          //     razorpay_payment_id: response.razorpay_payment_id,
-          //     razorpay_order_id: response.razorpay_order_id,
-          //   })
-          // })
-          const user = JSON.parse(localStorage.getItem('firstfly_user'))
-
-          if (!user) {
-            alert("Please login first")
-            return
-          }
-
-          const bookRes = await fetch('/api/book', {
+        const url = new URL('/confirmation', window.location.origin)
+        url.searchParams.set('pnr', data.pnr)
+        url.searchParams.set('name', form.name)
+        url.searchParams.set('flight', id)
+        url.searchParams.set('seat', selectedSeat)
+        url.searchParams.set('class', form.travelClass)
+        url.searchParams.set('price', finalPrice)
+        url.searchParams.set('from', from)
+        url.searchParams.set('to', to)
+        url.searchParams.set('departure', departure)
+        url.searchParams.set('arrival', arrival)
+        url.searchParams.set('flightName', flightName)
+        router.push(url.pathname + url.search)
+      },
+      modal: {
+        ondismiss: async () => {
+          // ── Release lock if user closes payment ──
+          await fetch('/api/seats/release', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: form.name,
-              age: form.age,
-              gender: form.gender,
-              travelClass: form.travelClass,
-              flight_id: id,
-              price: finalPrice,
-              seat: selectedSeat,
-              payment_id: response.razorpay_payment_id, // ✅ FIXED
-              user_id: user.id // 🔥 MOST IMPORTANT
-            })
+            body: JSON.stringify({ seatId: selectedSeat, userId: user.id })
           })
-          const data = await bookRes.json()
-
-          // Step 4: Redirect to confirmation
-          const url = new URL('/confirmation', window.location.origin)
-          url.searchParams.set('pnr', data.pnr)
-          url.searchParams.set('name', form.name)
-          url.searchParams.set('flight', id)
-          url.searchParams.set('seat', selectedSeat)
-          url.searchParams.set('class', form.travelClass)
-          url.searchParams.set('price', finalPrice)
-          url.searchParams.set('from', from)
-          url.searchParams.set('to', to)
-          url.searchParams.set('departure', departure)
-          url.searchParams.set('arrival', arrival)
-          url.searchParams.set('flightName', flightName)
-          router.push(url.pathname + url.search)
-        },
-        modal: {
-          ondismiss: () => { setPaymentLoading(false) }
+          setPaymentLoading(false)
         }
       }
-
-      // Load Razorpay script if not already loaded
-      if (!window.Razorpay) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script')
-          script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-          script.onload = resolve
-          script.onerror = reject
-          document.body.appendChild(script)
-        })
-      }
-
-      const rzp = new window.Razorpay(options)
-      rzp.open()
-
-    } catch (err) {
-      console.error(err)
-      alert('Something went wrong. Please try again.')
-      setPaymentLoading(false)
     }
+
+    const rzp = new window.Razorpay(options)
+    rzp.open()
+
+  } catch (err) {
+    console.error(err)
+    alert('Something went wrong. Please try again.')
+    setPaymentLoading(false)
   }
+}
 
   const SeatBtn = ({ row, col }) => {
-    const seatId = `${row}${col}`
+    const seatId = `${col}${row}`
     const colors = getSeatColor(seatId, row)
     return (
       <button
