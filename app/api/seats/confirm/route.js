@@ -1,15 +1,9 @@
 import mysql from 'mysql2/promise'
+import db from '@/lib/db'
 
 export async function POST(req) {
   const { seatId, userId, flightId, seatNumber } = await req.json()
 
-  const db = await mysql.createConnection({
-    host: '127.0.0.1',
-    port: 3307,
-    user: 'appuser',
-    password: '1234',
-    database: 'flight_system'
-  })
 
   try {
     // Step 1: Convert locked → booked

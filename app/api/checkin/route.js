@@ -1,18 +1,11 @@
 import mysql from 'mysql2/promise'
+import db from '@/lib/db'
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
 
   const pnr = searchParams.get('pnr')
   const name = searchParams.get('name')
-
-  const db = await mysql.createConnection({
-    host: '127.0.0.1',
-    port: 3307,
-    user: 'appuser',
-    password: '1234',
-    database: 'flight_system'
-  })
 
   const [rows] = await db.execute(
   `SELECT 
