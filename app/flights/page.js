@@ -1,7 +1,9 @@
 import Link from 'next/link'
 
 async function getFlights() {
-  const res = await fetch('/api/flights', { cache: 'no-store' })
+  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/flights`, {
+  cache: 'no-store'
+})
   return res.json()
 }
 
