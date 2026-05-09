@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 export default function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
-  const [user, setUser] = useState(null)
+ const [user, setUser] = useState<any>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
@@ -177,16 +177,16 @@ export default function Navbar() {
             </Link>
 
             <div ref={dropdownRef} style={{ position: 'relative' }}>
-              <button className="avatar-btn" onClick={() => setDropdownOpen(!dropdownOpen)} title={user.name || user.email}>
-                {(user.name || user.email || '?')[0].toUpperCase()}
+              <button className="avatar-btn" onClick={() => setDropdownOpen(!dropdownOpen)} title={user?.name || user?.email}>
+                {(user?.name || user?.email || '?')[0].toUpperCase()}
               </button>
 
               {dropdownOpen && (
                 <div className="profile-dropdown">
                   {/* User info header */}
                   <div style={{ padding: '14px 18px 10px', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.88rem', color: '#1a1a1a' }}>{user.name || 'Traveller'}</p>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: '#aaa' }}>{user.email}</p>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.88rem', color: '#1a1a1a' }}>{user?.name || 'Traveller'}</p>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: '#aaa' }}>{user?.email}</p>
                   </div>
 
                   <Link href="/my_trips" className="dropdown-item" onClick={() => setDropdownOpen(false)}>✈️ My Trips</Link>
