@@ -6,9 +6,9 @@ import { useEffect, useState, useRef } from 'react'
 export default function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
- const [user, setUser] = useState<any>(null)
+ const [user, setUser] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const dropdownRef = useRef(null)
 
   const links = [
     ['/flights', 'Flights'],
@@ -26,8 +26,8 @@ export default function Navbar() {
 
   // Close dropdown on outside click
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false)
       }
     }
