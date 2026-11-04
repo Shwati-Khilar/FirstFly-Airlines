@@ -1,35 +1,42 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { filterTrips } from '@/lib/frontend-model'
 
 export default function MyTripsPage() {
   const [bookings, setBookings] = useState([])
-  const [user, setUser] = useState(null)
+  const [error, setError] = useState('')
   const [tab, setTab] = useState('history')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const cancelling = useRef(new Set())
+  const visibleBookings = filterTrips(bookings, tab)
 
   useEffect(() => {
-    const stored = localStorage.getItem('firstfly_user')
-    if (!stored) { router.push('/login'); return }
-    const u = JSON.parse(stored)
-    setUser(u)
+    fetch('/api/bookings')
+      .then(async res => {
+        const data = await res.json()
+        if (res.status === 401) router.push('/login')
+        if (!res.ok) throw new Error(data.error || 'Unable to load trips')
+        setBookings(data.bookings || [])
+      }).catch(err => setError(err.message)).finally(() => setLoading(false))
+  }, [router])
 
-    fetch(`/api/bookings?userId=${u.id}`)
-      .then(res => res.json())
-      .then(data => { setBookings(data.bookings || []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
-
-  const handleCancel = async (b) => {
-    if (!confirm('Cancel this booking?')) return
-    const res = await fetch('/api/book/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pnr: b.pnr, seat: b.seat, flightId: b.flight_id })
-    })
-    if (res.ok) setBookings(prev => prev.map(x => x.pnr === b.pnr ? { ...x, status: 'Cancelled' } : x))
+  const handleCancel = async b => {
+    if (cancelling.current.has(b.id)) return
+    if (!confirm('Cancel this booking? Refunds require support review.')) return
+    cancelling.current.add(b.id)
+    try {
+      const res = await fetch('/api/book/cancel', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: b.id })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Cancellation failed')
+      setBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: 'cancelled' } : x))
+      setError('')
+    } catch (err) { setError(err.message) } finally { cancelling.current.delete(b.id) }
   }
 
   const getCode = (city) => {
@@ -38,10 +45,10 @@ export default function MyTripsPage() {
   }
 
   const getStatusStyle = (status) => {
-    if (!status || status === 'Confirmed') return { bg: '#e8f5ee', color: '#2d7a4f', label: 'CONFIRMED' }
-    if (status === 'Cancelled') return { bg: '#fde8e8', color: '#c0392b', label: 'CANCELLED' }
+    if (status === 'booked') return { bg: '#e8f5ee', color: '#2d7a4f', label: 'CONFIRMED' }
+    if (status === 'cancelled') return { bg: '#fde8e8', color: '#c0392b', label: 'CANCELLED' }
     if (status === 'Completed') return { bg: '#f0ebe0', color: '#888', label: 'COMPLETED' }
-    return { bg: '#f0ebe0', color: '#888', label: (status || '').toUpperCase() }
+    return { bg: '#f0ebe0', color: '#888', label: (status || 'Unknown').toUpperCase() }
   }
 
   return (
@@ -74,20 +81,21 @@ export default function MyTripsPage() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px', paddingTop: '8px' }}>
-            <button className="filter-btn">⊞ FILTER</button>
-            <button className="filter-btn">⇅ SORT: DATE ▾</button>
+
+
           </div>
         </div>
 
         {/* TABS */}
         <div style={{ display: 'flex', gap: '32px', marginBottom: '36px', borderBottom: '1px solid rgba(0,0,0,0.08)', marginTop: '28px' }}>
-          {['upcoming', 'history'].map(t => (
+          {['active', 'cancelled', 'history'].map(t => (
             <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
 
+        {error && <p role="alert" style={{ color: "#c0392b" }}>{error}</p>}
         {/* LOADING */}
         {loading && (
           <div style={{ textAlign: 'center', padding: '100px 0', color: '#aaa' }}>
@@ -96,7 +104,7 @@ export default function MyTripsPage() {
         )}
 
         {/* EMPTY */}
-        {!loading && bookings.length === 0 && (
+        {!loading && !error && visibleBookings.length === 0 && (
           <div style={{ textAlign: 'center', padding: '100px 0' }}>
             <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '2rem', fontWeight: 300, color: '#aaa', marginBottom: '24px' }}>No trips yet</p>
             <Link href="/flights">
@@ -108,10 +116,10 @@ export default function MyTripsPage() {
         )}
 
         {/* TRIPS GRID */}
-        {!loading && bookings.length > 0 && (
+        {!loading && visibleBookings.length > 0 && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '20px' }}>
-              {bookings.map(b => {
+              {visibleBookings.map(b => {
                 const st = getStatusStyle(b.status)
                 const fromCity = (b.origin || b.current_location || '---').trim()
                 const toCity = (b.destination || b.desired_location || '---').trim()
@@ -174,24 +182,14 @@ export default function MyTripsPage() {
 
                     {/* ACTIONS */}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      <button className="view-btn" onClick={() => {
+                      <button disabled={b.status !== 'booked'} className="view-btn" onClick={() => {
                         const url = new URL('/confirmation', window.location.origin)
                         url.searchParams.set('pnr', b.pnr)
-                        url.searchParams.set('name', b.name)
-                        url.searchParams.set('flight', b.flight_id)
-                        url.searchParams.set('seat', b.seat)
-                        url.searchParams.set('class', b.travel_class)
-                        url.searchParams.set('price', b.price)
-                        url.searchParams.set('from', fromCity)
-                        url.searchParams.set('to', toCity)
-                        url.searchParams.set('departure', dep)
-                        url.searchParams.set('arrival', arr)
-                        url.searchParams.set('flightName', fName)
                         router.push(url.pathname + url.search)
                       }}>
                         View Receipt
                       </button>
-                      {b.status !== 'Cancelled' && (
+                      {b.status === 'booked' && (
                         <button className="cancel-btn" onClick={() => handleCancel(b)}>
                           Cancel Trip
                         </button>
@@ -203,12 +201,6 @@ export default function MyTripsPage() {
               })}
             </div>
 
-            {/* LOAD MORE */}
-            <div style={{ textAlign: 'center', marginTop: '52px' }}>
-              <button style={{ background: 'transparent', border: 'none', fontSize: '0.88rem', color: '#aaa', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                Load Earlier Trips ▾
-              </button>
-            </div>
           </>
         )}
 
@@ -223,7 +215,7 @@ export default function MyTripsPage() {
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.82rem', opacity: 0.45, margin: 0 }}>© 2026 FirstFly. Elevate your journey.</p>
         </div>
         <div style={{ display: 'flex', gap: '32px', fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.55 }}>
-          {[['/flights', 'Flights'], ['/bookings', 'Bookings'], ['/checkin', 'Check-in'], ['/status', 'Status']].map(([href, label]) => (
+          {[['/flights', 'Flights'], ['/my_trips', 'Bookings'], ['/checkin', 'Check-in'], ['/status', 'Status']].map(([href, label]) => (
             <Link key={href} href={href} style={{ color: '#f0ebe0', textDecoration: 'none' }}>{label}</Link>
           ))}
         </div>

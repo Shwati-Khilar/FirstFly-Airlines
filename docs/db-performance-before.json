@@ -1,0 +1,103 @@
+{
+  "label": "before",
+  "method": "One local connection; 10 warmups then 100 sequential client-wall-clock samples per query; milliseconds; includes transport/row decoding, excludes connection setup; no concurrent load",
+  "counts": {
+    "flights": 140,
+    "seats": 12600,
+    "passengers": 36
+  },
+  "queries": {
+    "destination": {
+      "sql": "SELECT flight_code,flight_name,current_location,desired_location,departure_time,arrival_time,price,status FROM flights WHERE desired_location=? ORDER BY flight_code LIMIT 13 OFFSET 0",
+      "rows": 13,
+      "medianMs": 0.34,
+      "p95Ms": 0.787,
+      "explain": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "flights",
+          "type": "index",
+          "possible_keys": null,
+          "key": "PRIMARY",
+          "key_len": "4",
+          "ref": null,
+          "rows": "13",
+          "Extra": "Using where"
+        }
+      ]
+    },
+    "route": {
+      "sql": "SELECT flight_code,flight_name,current_location,desired_location,departure_time,arrival_time,price,status FROM flights WHERE current_location=? AND desired_location=? ORDER BY flight_code LIMIT 13 OFFSET 0",
+      "rows": 3,
+      "medianMs": 0.291,
+      "p95Ms": 0.465,
+      "explain": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "flights",
+          "type": "index",
+          "possible_keys": null,
+          "key": "PRIMARY",
+          "key_len": "4",
+          "ref": null,
+          "rows": "13",
+          "Extra": "Using where"
+        }
+      ]
+    },
+    "trips": {
+      "sql": "SELECT p.id,p.name,p.flight_id,p.seat,p.travel_class,p.price,p.pnr,p.status,f.flight_name FROM passengers p JOIN flights f ON f.flight_code=p.flight_id WHERE p.user_id=? ORDER BY p.id DESC",
+      "rows": 4,
+      "medianMs": 0.203,
+      "p95Ms": 0.39,
+      "explain": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "p",
+          "type": "index",
+          "possible_keys": "passengers_flight",
+          "key": "PRIMARY",
+          "key_len": "4",
+          "ref": null,
+          "rows": "36",
+          "Extra": "Using where"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "f",
+          "type": "eq_ref",
+          "possible_keys": "PRIMARY",
+          "key": "PRIMARY",
+          "key_len": "4",
+          "ref": "flight_system.p.flight_id",
+          "rows": "1",
+          "Extra": ""
+        }
+      ]
+    },
+    "oldFlightList": {
+      "sql": "SELECT * FROM flights",
+      "rows": 140,
+      "medianMs": 0.397,
+      "p95Ms": 0.725,
+      "explain": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "flights",
+          "type": "ALL",
+          "possible_keys": null,
+          "key": null,
+          "key_len": null,
+          "ref": null,
+          "rows": "140",
+          "Extra": ""
+        }
+      ]
+    }
+  }
+}

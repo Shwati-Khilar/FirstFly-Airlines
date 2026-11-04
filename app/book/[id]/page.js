@@ -1,31 +1,60 @@
 'use client'
-import { useState, Suspense } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { seatClass } from '@/lib/frontend-model'
 import toast from "react-hot-toast"
 
 function BookPageInner() {
   const params = useParams()
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const [flightData, setFlightData] = useState(null)
   const [selectedSeat, setSelectedSeat] = useState('')
   const [paymentLoading, setPaymentLoading] = useState(false)
 
   const id = params?.id
-  const from = (searchParams.get('from') || '').trim()
-  const to = (searchParams.get('to') || '').trim()
-  const departure = (searchParams.get('departure') || '').trim()
-  const arrival = (searchParams.get('arrival') || '').trim()
-  const flightName = (searchParams.get('flightName') || '').trim()
+  const from = flightData?.current_location?.trim() || ''
+  const to = flightData?.desired_location?.trim() || ''
+  const departure = flightData?.departure_time || ''
+  const flightName = flightData?.flight_name || ''
 
   const [form, setForm] = useState({ name: '', age: '', gender: '', travelClass: 'Economy' })
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
-  const basePrice = 5000
-  const finalPrice = form.travelClass === 'Business' ? basePrice * 1.5 : basePrice
+  const [fares, setFares] = useState(null)
+  const basePrice = fares?.Economy || 0
+  const [seats, setSeats] = useState([])
+  const [flightError, setFlightError] = useState('')
+  const [availabilityError, setAvailabilityError] = useState('')
+  const [pending, setPending] = useState(null)
+  const busy = useRef(false)
+  const pendingKey = 'firstfly_pending_' + id
+  const loadSeats = useCallback(async () => {
+    const res = await fetch('/api/seats/get?flight=' + encodeURIComponent(id), { cache: 'no-store' })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Unable to load seats')
+    setSeats(data)
+    setAvailabilityError('')
+  }, [id])
+  useEffect(() => {
+    let active = true
+    Promise.resolve().then(() => {
+      try { const saved = sessionStorage.getItem(pendingKey); if (saved && active) setPending(JSON.parse(saved)) } catch { /* Ignore corrupt recovery data. */ }
+    })
+    fetch('/api/flights?id=' + encodeURIComponent(id)).then(async r => {
+      const data = await r.json()
+      if (!r.ok || !data[0]?.fares) throw new Error('Flight or fare unavailable')
+      if (active) { setFlightData(data[0]); setFares(data[0].fares) }
+    }).catch(err => { if (active) setFlightError(err.message) })
+    const refresh = () => loadSeats().catch(err => { if (active) setAvailabilityError(err.message) })
+    refresh()
+    const timer = setInterval(refresh, 15000)
+    return () => { active = false; clearInterval(timer) }
+  }, [id, loadSeats, pendingKey])
+  const finalPrice = fares?.[pending?.travelClass || form.travelClass] || 0
 
   const businessRows = [1, 2, 3]
   const economyRows = Array.from({ length: 12 }, (_, i) => i + 4)
-  const occupied = new Set(['1B', '2D', '3A', '3F', '4C', '4D', '5A', '5B', '6E', '7F', '8C', '9A', '10D', '11B', '12F', '13C', '14E', '15A'])
+  const occupied = new Set(seats.filter(s => s.status !== 'available').map(s => s.seat_number))
 
   const getSeatType = (col) => {
     if (col === 'A' || col === 'F') return 'window'
@@ -41,148 +70,121 @@ function BookPageInner() {
   }
 
   const handleSeatClick = (seatId) => {
-    if (occupied.has(seatId)) return
+    if (paymentLoading || pending || occupied.has(seatId) || !seats.some(s => s.seat_number === seatId)) return
+    setForm(f => ({ ...f, travelClass: seatClass(seatId) }))
     setSelectedSeat(seatId === selectedSeat ? '' : seatId)
   }
 
-  // ── RAZORPAY PAYMENT FLOW ──
-  const handlePayment = async () => {
-    if (!form.name || !form.age || !form.gender) { toast.error('Please fill in all passenger details'); return }
-    if (!selectedSeat) { toast.error('Please select a seat'); return }
-
-    setPaymentLoading(true);
-
-    const user = JSON.parse(localStorage.getItem('firstfly_user'))
-    if (!user) {
-      toast.error("Please login to continue.");
-
-      router.push("/login");
-      return;
+  function remember(payload) {
+    setPending(payload)
+    try { sessionStorage.setItem(pendingKey, JSON.stringify(payload)) } catch { /* In-memory recovery remains available. */ }
+  }
+  function clearPending() {
+    setPending(null)
+    try { sessionStorage.removeItem(pendingKey) } catch { /* Ignore unavailable storage. */ }
+  }
+  async function post(url, body) {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const data = await res.json()
+    if (!res.ok && !data.state) {
+      if (res.status === 401) router.push('/login')
+      throw new Error(data.error || 'Request failed')
     }
-
+    return data
+  }
+  function showOutcome(data) {
+    if (data.state !== 'confirmed' || !data.success || !data.pnr) {
+      toast.error(data.message || 'Payment needs review. Do not pay again.', { duration: 7000 })
+      return
+    }
+    clearPending()
+    const url = new URL('/confirmation', window.location.origin)
+    url.searchParams.set('pnr', data.pnr)
+    toast.success('Booking confirmed')
+    router.push(url.pathname + url.search)
+  }
+  async function finishBooking(payload) {
     try {
-      // ── STEP 1: Lock the seat before payment ──
-      const lockRes = await fetch('/api/seats/lock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seatId: selectedSeat, userId: user.id, flightId: id })
-      })
-      const lockData = await lockRes.json()
-
-      if (lockData.error) {
-        toast.error("This seat is no longer available.");
-
-        setPaymentLoading(false)
-        return
-      }
-
-      // ── STEP 2: Create Razorpay order ──
-      const orderRes = await fetch('/api/payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: finalPrice })
-      })
-      const order = await orderRes.json()
-      if (order.error) { toast.error('Payment initiation failed: ' + order.error); setPaymentLoading(false); return }
-
-      // ── STEP 3: Open Razorpay ──
-      if (!window.Razorpay) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script')
-          script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-          script.onload = resolve
-          script.onerror = reject
-          document.body.appendChild(script)
-        })
-      }
-
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'FirstFly Airways',
-        description: `Flight ${id} — Seat ${selectedSeat}`,
-        order_id: order.id,
-        prefill: { name: form.name },
-        theme: { color: '#1a1a1a' },
-        handler: async (response) => {
-          // ── STEP 4: Save booking ──
-          const bookRes = await fetch('/api/book', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: form.name,
-              age: form.age,
-              gender: form.gender,
-              travelClass: form.travelClass,
-              flight_id: id,
-              price: finalPrice,
-              seat: selectedSeat,
-              payment_id: response.razorpay_payment_id,
-              user_id: user.id
-            })
-          })
-          const data = await bookRes.json()
-          if (!bookRes.ok) {
-
-            await fetch("/api/seats/release", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                seatId: selectedSeat,
-                userId: user.id
-              })
-            });
-
-            toast.error(data.error || "Booking failed");
-
-            setPaymentLoading(false);
-            return;
-          }
-
-          const url = new URL('/confirmation', window.location.origin)
-          url.searchParams.set('pnr', data.pnr)
-          url.searchParams.set('name', form.name)
-          url.searchParams.set('flight', id)
-          url.searchParams.set('seat', selectedSeat)
-          url.searchParams.set('class', form.travelClass)
-          url.searchParams.set('price', finalPrice)
-          url.searchParams.set('from', from)
-          url.searchParams.set('to', to)
-          url.searchParams.set('departure', departure)
-          url.searchParams.set('arrival', arrival)
-          url.searchParams.set('flightName', flightName)
-          toast.success(
-    `Seat ${selectedSeat} booked successfully!`
-);
-
-          setTimeout(() => {
-            router.push(url.pathname + url.search);
-          }, 1200);
-        },
-        modal: {
-          ondismiss: async () => {
-            // ── Release lock if user closes payment ──
-            await fetch('/api/seats/release', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ seatId: selectedSeat, userId: user.id })
-            })
-            setPaymentLoading(false)
-          }
-        }
-      }
-
-      const rzp = new window.Razorpay(options)
-      rzp.open()
-
+      const endpoint = payload.razorpay_signature ? '/api/book' : '/api/payment/reconcile'
+      showOutcome(await post(endpoint, payload), payload)
     } catch (err) {
-      console.error(err)
-      toast.error("Unable to lock the selected seat.")
-      setPaymentLoading(false)
+      toast.error(err.message + '. Check payment status again; do not start another payment.', { duration: 8000 })
+    } finally { busy.current = false; setPaymentLoading(false) }
+  }
+  async function openCheckout(payload) {
+    // Persist BEFORE requesting an order: a lost response must not start a new attempt.
+    remember(payload)
+    const order = await post('/api/payment', payload)
+    if (!order.id) { showOutcome(order, payload); return false }
+    if (!window.Razorpay) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+        script.onload = resolve
+        script.onerror = () => reject(new Error('Unable to load checkout; resume this attempt'))
+        document.body.appendChild(script)
+      })
     }
+    const rzp = new window.Razorpay({
+      key: order.keyId, amount: order.amount, currency: order.currency, order_id: order.id,
+      name: 'FirstFly Airways', description: 'Flight ' + payload.flightId + ' — Seat ' + payload.seatNumber,
+      prefill: { name: payload.name }, theme: { color: '#1a1a1a' },
+      handler: async response => {
+        const proof = { ...payload, ...response }
+        remember(proof)
+        await finishBooking(proof)
+      },
+      modal: { ondismiss: () => {
+        busy.current = false; setPaymentLoading(false)
+        toast('Checkout closed. Check payment status or cancel the reservation.')
+      } }
+    })
+    rzp.on('payment.failed', () => toast.error('Payment failed. Retry this checkout or close it and check payment status.'))
+    rzp.open()
+    return true
+  }
+  const handlePayment = async () => {
+    if (busy.current) return
+    if (pending) {
+      busy.current = true; setPaymentLoading(true)
+      await finishBooking(pending)
+      return
+    }
+    if (!form.name.trim() || !Number.isInteger(Number(form.age)) || Number(form.age) < 1 || Number(form.age) > 120 || !form.gender) {
+      toast.error('Please enter valid passenger details'); return
+    }
+    if (!selectedSeat || !basePrice || availabilityError || occupied.has(selectedSeat)) { toast.error('Select an available seat'); return }
+    busy.current = true; setPaymentLoading(true)
+    const payload = { ...form, flightId: id, seatNumber: selectedSeat, attemptId: crypto.randomUUID() }
+    let checkout = false
+    try {
+      await post('/api/seats/lock', payload)
+      checkout = await openCheckout(payload)
+    } catch (err) { toast.error(err.message) }
+    finally { if (!checkout) { busy.current = false; setPaymentLoading(false) } }
+  }
+  async function resumeCheckout() {
+    if (busy.current || !pending || pending.razorpay_signature) return
+    busy.current = true; setPaymentLoading(true)
+    let checkout = false
+    try { checkout = await openCheckout(pending) }
+    catch (err) { toast.error(err.message) }
+    finally { if (!checkout) { busy.current = false; setPaymentLoading(false) } }
+  }
+  async function cancelPending() {
+    if (busy.current || !pending) return
+    if (!confirm('Release this reservation? Any payment that completes afterwards requires support/refund review.')) return
+    busy.current = true; setPaymentLoading(true)
+    try {
+      const outcome = await post('/api/payment/reconcile', pending)
+      if (outcome.state === 'confirmed') { showOutcome(outcome, pending); return }
+      if (outcome.state === 'review' || pending.razorpay_signature) { showOutcome(outcome, pending); return }
+      await post('/api/seats/release', pending)
+      clearPending()
+      await loadSeats()
+      toast('Reservation released. No refund has been processed.')
+    } catch (err) { toast.error(err.message + '. Reservation retained for recovery.') }
+    finally { busy.current = false; setPaymentLoading(false) }
   }
 
   const SeatBtn = ({ row, col }) => {
@@ -190,7 +192,10 @@ function BookPageInner() {
     const colors = getSeatColor(seatId, row)
     return (
       <button
+        aria-pressed={selectedSeat === seatId}
+        aria-label={`${seatId}, ${row <= 3 ? 'Business' : 'Economy'}, ${occupied.has(seatId) ? 'unavailable' : 'available'}`}
         type="button"
+        disabled={paymentLoading || !!pending || occupied.has(seatId) || !seats.some(s => s.seat_number === seatId)}
         onClick={() => handleSeatClick(seatId)}
         title={`${seatId} — ${getSeatType(col)}`}
         style={{
@@ -223,7 +228,7 @@ function BookPageInner() {
         .pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }
       `}</style>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', maxWidth: '1200px', margin: '0 auto', width: '100%', padding: '60px 40px' }}>
+      <div className="booking-layout" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', maxWidth: '1200px', margin: '0 auto', width: '100%', padding: '60px 40px' }}>
 
         {/* ── LEFT ── */}
         <div style={{ paddingRight: '48px', borderRight: '1px solid rgba(0,0,0,0.08)' }}>
@@ -239,10 +244,10 @@ function BookPageInner() {
           {/* CLASS CARDS */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '32px' }}>
             {[
-              { value: 'Business', label: 'Business Class', sub: 'Elevated Serenity', price: '₹7,500', perks: ['Flat-bed recliners', 'Priority boarding'] },
-              { value: 'Economy', label: 'Economy', sub: 'Smart Efficiency', price: '₹5,000', perks: ['Standard comfort', '1 Checked Bag'] },
+              { value: 'Business', label: 'Business Class', sub: 'Elevated Serenity', price: '₹' + (fares?.Business || 0).toLocaleString(), perks: ['Flat-bed recliners', 'Priority boarding'] },
+              { value: 'Economy', label: 'Economy', sub: 'Smart Efficiency', price: '₹' + basePrice.toLocaleString(), perks: ['Standard comfort', '1 Checked Bag'] },
             ].map(cls => (
-              <div key={cls.value} onClick={() => setForm(f => ({ ...f, travelClass: cls.value }))}
+              <div role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click() } }} aria-pressed={form.travelClass === cls.value} key={cls.value} onClick={() => { if (!paymentLoading && !pending) { setForm(f => ({ ...f, travelClass: cls.value })); setSelectedSeat('') } }}
                 style={{
                   padding: '20px', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s',
                   border: form.travelClass === cls.value ? '2px solid #1a1a1a' : '2px solid transparent',
@@ -327,7 +332,7 @@ function BookPageInner() {
                     <p style={{ fontSize: '0.62rem', color: '#aaa', fontFamily: "'DM Sans', sans-serif", margin: '0 0 2px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Seat</p>
                     <p style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{selectedSeat}</p>
                     <p style={{ fontSize: '0.7rem', color: '#888', fontFamily: "'DM Sans', sans-serif", margin: '1px 0 0' }}>
-                      {getSeatType(selectedSeat.slice(-1))}
+                      {getSeatType(selectedSeat[0])}
                     </p>
                   </div>
                 )}
@@ -343,7 +348,7 @@ function BookPageInner() {
 
             <button
               onClick={handlePayment}
-              disabled={paymentLoading}
+              disabled={paymentLoading || (!pending && (!basePrice || !seats.length || !!availabilityError))}
               className="pay-btn"
               style={{ width: '100%', background: '#1a1a1a', color: '#f0ebe0', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '0.9rem', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.1em', transition: 'all 0.2s', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
               {paymentLoading ? (
@@ -352,7 +357,7 @@ function BookPageInner() {
                   Processing...
                 </>
               ) : (
-                <>Pay ₹{finalPrice.toLocaleString()} via Razorpay ✦</>
+                <>{pending ? 'Check payment / retry confirmation' : 'Pay ₹' + finalPrice.toLocaleString() + ' via Razorpay ✦'}</>
               )}
             </button>
 
@@ -374,6 +379,14 @@ function BookPageInner() {
           </h2>
           <p style={{ fontFamily: "'DM Sans', sans-serif", color: '#888', fontSize: '0.85rem', marginBottom: '24px' }}>Choose your horizon</p>
 
+          {flightError && <p role="alert">{flightError}</p>}
+          {!fares && !flightError && <p role="status">Loading flight and fares…</p>}
+          {availabilityError && <p role="alert">{availabilityError}</p>}
+          {pending && <div role="status">
+            <p>Reservation {pending.attemptId}. Check payment status before starting another booking.</p>
+            {!pending.razorpay_signature && <button type="button" disabled={paymentLoading} onClick={resumeCheckout}>Resume same checkout</button>}
+            <button type="button" disabled={paymentLoading} onClick={cancelPending}>Cancel reservation</button>
+          </div>}
           {/* LEGEND */}
           <div style={{ display: 'flex', gap: '20px', marginBottom: '24px', fontFamily: "'DM Sans', sans-serif", fontSize: '0.75rem', color: '#666' }}>
             {[
@@ -453,10 +466,10 @@ function BookPageInner() {
                 <p style={{ fontSize: '0.65rem', color: '#888', fontFamily: "'DM Sans', sans-serif", margin: '0 0 2px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Selected</p>
                 <p style={{ fontSize: '1.2rem', fontWeight: 700, color: 'white', margin: 0 }}>Seat {selectedSeat}</p>
                 <p style={{ fontSize: '0.75rem', color: '#888', fontFamily: "'DM Sans', sans-serif", margin: '2px 0 0' }}>
-                  {getSeatType(selectedSeat.slice(-1))} · {parseInt(selectedSeat) <= 3 ? 'Business' : 'Economy'}
+                  {getSeatType(selectedSeat[0])} · {Number(selectedSeat.slice(1)) <= 3 ? 'Business' : 'Economy'}
                 </p>
               </div>
-              <button type="button" onClick={() => setSelectedSeat('')}
+              <button type="button" onClick={() => { if (!paymentLoading && !pending) setSelectedSeat('') }}
                 style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)', borderRadius: '8px', padding: '6px 12px', fontSize: '0.75rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer' }}>
                 Clear
               </button>

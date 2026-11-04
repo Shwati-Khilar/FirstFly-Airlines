@@ -6,14 +6,23 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test tests/*.test.mjs",
+    "test:integration": "node --env-file=.env.local --test tests/*.integration.mjs",
+    "db:audit": "node --env-file=.env.local scripts/reservations-db.mjs audit",
+    "db:migrate": "node --env-file=.env.local scripts/reservations-db.mjs apply",
+    "payments:reconcile": "node --env-file=.env.local scripts/reconcile-payments.mjs",
+    "payments:reviews": "node --env-file=.env.local scripts/reconcile-payments.mjs --reviews",
+    "db:seed:demo": "node --env-file=.env.local scripts/seed-demo.mjs",
+    "benchmark:seats": "node --env-file=.env.local scripts/benchmark-seats.mjs",
+    "test:setup": "node --env-file=.env.local scripts/verify-setup.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "mysql2": "^3.22.0",
-    "next": "16.2.3",
+    "next": "^16.4.4",
+    "qr.js": "^0.0.0",
     "razorpay": "^2.9.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -26,7 +35,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.3",
+    "eslint-config-next": "^16.4.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -1,0 +1,190 @@
+{
+  "method": "Single local connection; mysql2 execute; 5 warmups, 50 sequential samples per query, includes row transfer; no forced indexes; unchanged data",
+  "before": {
+    "allFlightsPrevious": {
+      "rowsReturned": 140,
+      "medianMs": 0.607,
+      "p95Ms": 1.459,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "ALL",
+          "key": null,
+          "rows": "140",
+          "extra": ""
+        }
+      ]
+    },
+    "origin": {
+      "rowsReturned": 13,
+      "medianMs": 0.318,
+      "p95Ms": 0.473,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "index",
+          "key": "PRIMARY",
+          "rows": "13",
+          "extra": "Using where"
+        }
+      ]
+    },
+    "destination": {
+      "rowsReturned": 13,
+      "medianMs": 0.44,
+      "p95Ms": 0.913,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "index",
+          "key": "PRIMARY",
+          "rows": "13",
+          "extra": "Using where"
+        }
+      ]
+    },
+    "route": {
+      "rowsReturned": 3,
+      "medianMs": 0.299,
+      "p95Ms": 0.542,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "index",
+          "key": "PRIMARY",
+          "rows": "13",
+          "extra": "Using where"
+        }
+      ]
+    },
+    "page": {
+      "rowsReturned": 13,
+      "medianMs": 0.247,
+      "p95Ms": 0.361,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "index",
+          "key": "PRIMARY",
+          "rows": "13",
+          "extra": ""
+        }
+      ]
+    },
+    "myTrips": {
+      "rowsReturned": 4,
+      "medianMs": 0.196,
+      "p95Ms": 0.564,
+      "plan": [
+        {
+          "table": "p",
+          "type": "index",
+          "key": "PRIMARY",
+          "rows": "36",
+          "extra": "Using where"
+        },
+        {
+          "table": "f",
+          "type": "eq_ref",
+          "key": "PRIMARY",
+          "rows": "1",
+          "extra": ""
+        }
+      ]
+    }
+  },
+  "after": {
+    "allFlightsPrevious": {
+      "rowsReturned": 140,
+      "medianMs": 0.683,
+      "p95Ms": 1.38,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "ALL",
+          "key": null,
+          "rows": "140",
+          "extra": ""
+        }
+      ]
+    },
+    "origin": {
+      "rowsReturned": 13,
+      "medianMs": 0.329,
+      "p95Ms": 0.515,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "ref",
+          "key": "flights_origin",
+          "rows": "15",
+          "extra": "Using index condition; Using where"
+        }
+      ]
+    },
+    "destination": {
+      "rowsReturned": 13,
+      "medianMs": 0.385,
+      "p95Ms": 0.72,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "ref",
+          "key": "flights_destination",
+          "rows": "15",
+          "extra": "Using index condition; Using where"
+        }
+      ]
+    },
+    "route": {
+      "rowsReturned": 3,
+      "medianMs": 0.584,
+      "p95Ms": 1.672,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "index_merge",
+          "key": "flights_origin,flights_destination",
+          "rows": "1",
+          "extra": "Using intersect(flights_origin,flights_destination); Using where; Using filesort"
+        }
+      ]
+    },
+    "page": {
+      "rowsReturned": 13,
+      "medianMs": 0.174,
+      "p95Ms": 0.43,
+      "plan": [
+        {
+          "table": "flights",
+          "type": "index",
+          "key": "PRIMARY",
+          "rows": "13",
+          "extra": ""
+        }
+      ]
+    },
+    "myTrips": {
+      "rowsReturned": 4,
+      "medianMs": 0.252,
+      "p95Ms": 0.691,
+      "plan": [
+        {
+          "table": "p",
+          "type": "ref",
+          "key": "passengers_owner",
+          "rows": "4",
+          "extra": "Using where"
+        },
+        {
+          "table": "f",
+          "type": "eq_ref",
+          "key": "PRIMARY",
+          "rows": "1",
+          "extra": ""
+        }
+      ]
+    }
+  },
+  "existingRowsUnchanged": true
+}

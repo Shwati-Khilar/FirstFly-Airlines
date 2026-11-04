@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+!.env.example
+
+# Local PDF verification artifacts (synthetic test samples)
+/tmp/
+/output/
+
+# Local editor settings and diagnostics
+/.vscode/
+*.log
+__pycache__/
+*.pyc

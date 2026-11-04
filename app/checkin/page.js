@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -9,32 +9,19 @@ export default function CheckInPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const busy = useRef(false)
 
   const handleCheckIn = async () => {
-    if (!pnr || !name) { setError('Please fill in all fields'); return }
-    setLoading(true)
-    setError('')
-
-    const res = await fetch(`/api/checkin?pnr=${pnr}&name=${encodeURIComponent(name)}`)
-    const result = await res.json()
-    setLoading(false)
-
-    if (result.error) { setError(result.error); return }
-
-    const url = new URL('/confirmation', window.location.origin)
-    url.searchParams.set('pnr', result.pnr)
-    url.searchParams.set('name', result.name)
-    url.searchParams.set('flight', result.flight_id)
-    url.searchParams.set('seat', result.seat)
-    url.searchParams.set('class', result.travel_class)
-    url.searchParams.set('price', result.price)
-    url.searchParams.set('from', (result.current_location || '').trim())
-    url.searchParams.set('to', (result.desired_location || '').trim())
-    url.searchParams.set('departure', (result.departure_time || '').trim())
-    url.searchParams.set('arrival', (result.arrival_time || '').trim())
-    url.searchParams.set('flightName', (result.flight_name || '').trim())
-
-    router.push(url.pathname + url.search)
+    if (busy.current) return
+    if (!pnr.trim() || !name.trim()) { setError('Please fill in all fields'); return }
+    busy.current = true; setLoading(true); setError('')
+    try {
+      const res = await fetch('/api/checkin?' + new URLSearchParams({pnr:pnr.trim(),name:name.trim()}))
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Unable to retrieve booking')
+      router.push('/confirmation?' + new URLSearchParams({pnr:result.pnr}))
+    } catch (err) { setError(err.message || 'Network error. Please try again.') }
+    finally { busy.current = false; setLoading(false) }
   }
 
   return (
@@ -150,7 +137,7 @@ export default function CheckInPage() {
               <input
                 className="checkin-input"
                 placeholder="E.g. 362376"
-                value={pnr}
+                aria-label="PNR" value={pnr}
                 onChange={e => setPnr(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCheckIn()}
               />
@@ -158,12 +145,12 @@ export default function CheckInPage() {
 
             <div style={{ marginBottom: '32px' }}>
               <label style={{ display: 'block', fontSize: '0.65rem', letterSpacing: '0.18em', color: '#888', fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', marginBottom: '8px' }}>
-                Last Name
+                Full Passenger Name
               </label>
               <input
                 className="checkin-input"
                 placeholder="Enter as shown on passport"
-                value={name}
+                aria-label="Full passenger name" value={name}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCheckIn()}
               />
@@ -220,7 +207,7 @@ export default function CheckInPage() {
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.5, margin: 0 }}>© 2026 FirstFly. Elevate your journey.</p>
         </div>
         <div style={{ display: 'flex', gap: '32px', fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.6 }}>
-          {[['/flights', 'Flights'], ['/bookings', 'Bookings'], ['/checkin', 'Check-in'], ['/status', 'Status']].map(([href, label]) => (
+          {[['/flights', 'Flights'], ['/my_trips', 'Bookings'], ['/checkin', 'Check-in'], ['/status', 'Status']].map(([href, label]) => (
             <Link key={href} href={href} style={{ color: '#f0ebe0', textDecoration: 'none' }}>{label}</Link>
           ))}
         </div>

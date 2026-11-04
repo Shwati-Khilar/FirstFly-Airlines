@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+
 
 export default function LoginPage() {
   const router = useRouter()
@@ -30,8 +30,8 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      // Store user in localStorage
-      localStorage.setItem('firstfly_user', JSON.stringify(data.user))
+      // Identity comes from the HTTP-only server session.
+      try { localStorage.removeItem('firstfly_user') } catch { /* Session works without browser storage. */ }
       router.push('/')
     } catch {
       setError('Something went wrong. Please try again.')
@@ -172,9 +172,6 @@ export default function LoginPage() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <label style={{ fontSize: '0.62rem', letterSpacing: '0.18em', color: '#888', textTransform: 'uppercase' }}>Password</label>
-                {mode === 'login' && (
-                  <span style={{ fontSize: '0.68rem', color: '#888', letterSpacing: '0.08em', cursor: 'pointer', textTransform: 'uppercase' }}>Forgot?</span>
-                )}
               </div>
               <input className="auth-input" name="password" type="password" placeholder="••••••••" onChange={handleChange}
                 onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
@@ -199,10 +196,10 @@ export default function LoginPage() {
 
           {/* Social */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '28px' }}>
-            <button className="social-btn">
+            <button className="social-btn" disabled title="Social login is not implemented">
               <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>G</span> GOOGLE
             </button>
-            <button className="social-btn">
+            <button className="social-btn" disabled title="Social login is not implemented">
               <span style={{ fontWeight: 700, fontSize: '0.85rem' }}></span> APPLE
             </button>
           </div>

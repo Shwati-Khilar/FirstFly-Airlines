@@ -1,26 +1,41 @@
 'use client'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { verifiedBooking } from '@/lib/frontend-model'
 import QRCode from 'react-qr-code'
-import { useRef, Suspense } from 'react'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+import { useRef, useEffect, useState, Suspense } from 'react'
+import { downloadBookingPdf } from '@/lib/booking-pdf'
 
 function ConfirmationInner() {
   const params = useSearchParams()
   const ticketRef = useRef()
 
-  const pnr = params.get('pnr') || '----'
-  const name = params.get('name') || 'Guest'
-  const flight = params.get('flight') || '---'
-  const seat = params.get('seat') || 'N/A'
-  const travelClass = params.get('class') || 'Economy'
-  const price = params.get('price') || '5000'
-  const from = params.get('from') || '---'
-  const to = params.get('to') || '---'
-  const departure = params.get('departure') || '--:--'
-  const arrival = params.get('arrival') || '--:--'
-  const flightName = params.get('flightName') || 'FirstFly'
+  const requestedPnr = params.get('pnr')
+  const [booking, setBooking] = useState(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/bookings', { cache: 'no-store', signal: controller.signal }).then(async res => {
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Please sign in to view this booking')
+      const found = verifiedBooking(data.bookings || [], requestedPnr)
+      if (!found) throw new Error('Active booking not found for your account')
+      setError('')
+      setBooking(found)
+    }).catch(err => { if (err.name !== 'AbortError') setError(err.message) })
+    return () => controller.abort()
+  }, [requestedPnr])
+  const pnr = booking?.pnr
+  const name = booking?.name
+  const flight = booking?.flight_id
+  const seat = booking?.seat
+  const travelClass = booking?.travel_class
+  const price = booking?.price
+  const from = booking?.origin || ''
+  const to = booking?.destination || ''
+  const departure = booking?.departure_time
+  const arrival = booking?.arrival_time
+  const flightName = booking?.flight_name
 
   const getCode = (city) => {
     const map = { Delhi: 'DEL', Mumbai: 'BOM', Bangalore: 'BLR', Chennai: 'MAA' }
@@ -28,33 +43,12 @@ function ConfirmationInner() {
   }
 
   const downloadPDF = async () => {
-    const element = ticketRef.current
-    if (!element) return
-    await document.fonts.ready
-    const canvas = await html2canvas(element, {
-      scale: 3,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      foreignObjectRendering: false,
-      onclone: (clonedDoc, clonedEl) => {
-        clonedEl.style.fontFamily = "'Cormorant Garamond', Georgia, serif"
-        const allEls = clonedEl.querySelectorAll('*')
-        allEls.forEach(el => {
-          el.style.webkitPrintColorAdjust = 'exact'
-          el.style.printColorAdjust = 'exact'
-        })
-      }
-    })
-    const imgData = canvas.toDataURL('image/png', 1.0)
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [220, 100] })
-    const pdfWidth = pdf.internal.pageSize.getWidth()
-    const pdfHeight = pdf.internal.pageSize.getHeight()
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-    pdf.save(`FirstFly_Boarding_${pnr}.pdf`)
+    try { await downloadBookingPdf(booking) }
+    catch { setError('PDF download failed. Reload this page to try again.') }
   }
 
+  if (error) return <main role="alert" style={{padding:40}}>{error} <Link href="/my_trips">My Trips</Link></main>
+  if (!booking || String(booking.pnr) !== requestedPnr) return <p role="status" style={{padding:40}}>Loading verified booking…</p>
   return (
     // ── KEY FIX: remove justifyContent:'center', use flexDirection:'column' only
     <div style={{
@@ -89,7 +83,7 @@ function ConfirmationInner() {
             Booking Confirmed ✦
           </p>
           <h1 style={{ fontSize: '3rem', fontWeight: 300, letterSpacing: '-0.02em', margin: 0 }}>
-            Your <em style={{ fontStyle: 'italic', fontWeight: 600 }}>Boarding Pass</em>
+            Your <em style={{ fontStyle: 'italic', fontWeight: 600 }}>Booking Confirmation</em>
           </h1>
         </div>
 
@@ -176,7 +170,7 @@ function ConfirmationInner() {
             <div style={{ padding: '8px', background: '#f0ebe0', borderRadius: '10px' }}>
               <QRCode value={`PNR:${pnr}`} size={90} bgColor="#f0ebe0" fgColor="#1a1a1a" />
             </div>
-            <p style={{ fontSize: '0.6rem', color: '#555', fontFamily: "'DM Sans', sans-serif", marginTop: '10px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Gate Scan</p>
+            <p style={{ fontSize: '0.6rem', color: '#555', fontFamily: "'DM Sans', sans-serif", marginTop: '10px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Booking reference</p>
           </div>
         </div>
 
@@ -184,7 +178,7 @@ function ConfirmationInner() {
         <div style={{ display: 'flex', gap: '16px', marginTop: '32px' }}>
           <button onClick={downloadPDF} className="dl-btn action-btn"
             style={{ background: '#1a1a1a', color: '#f0ebe0', padding: '14px 32px', borderRadius: '100px', border: 'none', cursor: 'pointer', fontSize: '0.9rem', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.08em', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            📄 Download Boarding Pass
+            📄 Download Booking Confirmation
           </button>
           <Link href="/flights">
             <button className="action-btn"
@@ -209,7 +203,7 @@ function ConfirmationInner() {
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.5, margin: 0 }}>© 2026 FirstFly. Elevate your journey.</p>
         </div>
         <div style={{ display: 'flex', gap: '32px', fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.6 }}>
-          {[['/flights', 'Flights'], ['/checkin', 'Check-in'], ['/status', 'Status'], ['/my-trips', 'My Trips']].map(([href, label]) => (
+          {[['/flights', 'Flights'], ['/checkin', 'Check-in'], ['/status', 'Status'], ['/my_trips', 'My Trips']].map(([href, label]) => (
             <Link key={href} href={href} style={{ color: '#f0ebe0', textDecoration: 'none' }}>{label}</Link>
           ))}
         </div>

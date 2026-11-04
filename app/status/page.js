@@ -9,13 +9,15 @@ export default function StatusPage() {
   const [error, setError] = useState('')
 
   const handleSearch = async () => {
+    if (loading) return
     if (!input) { setError('Please enter a Flight ID'); return }
     setLoading(true)
     setError('')
     setFlight(null)
     try {
-      const res = await fetch(`/api/flights?id=${input}`)
+      const res = await fetch(`/api/flights?id=${encodeURIComponent(input.trim())}`)
       const data = await res.json()
+      if (!res.ok) throw new Error('Unable to load flight')
       if (data.length > 0) setFlight(data[0])
       else setError('No flight found with that ID')
     } catch { setError('Error fetching flight data') }
@@ -66,7 +68,7 @@ export default function StatusPage() {
         {!flight && (
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', padding:'40px 24px' }}>
             <div className="fu" style={{ textAlign:'center', marginBottom:'48px' }}>
-              <p style={{ fontSize:'0.7rem', letterSpacing:'0.25em', color:'#888', fontFamily:"'DM Sans',sans-serif", marginBottom:'16px', textTransform:'uppercase' }}>Live Tracking</p>
+              <p style={{ fontSize:'0.7rem', letterSpacing:'0.25em', color:'#888', fontFamily:"'DM Sans',sans-serif", marginBottom:'16px', textTransform:'uppercase' }}>Schedule & Demo Preview</p>
               <h1 style={{ fontSize:'clamp(2.4rem,5vw,3.8rem)', fontWeight:400, letterSpacing:'-0.02em', color:'#1a1a1a', margin:0, lineHeight:1.1 }}>
                 Track Your <em style={{ fontStyle:'italic' }}>Flight</em>
               </h1>
@@ -75,18 +77,18 @@ export default function StatusPage() {
             <div className="fu2" style={{ background:'rgba(255,255,255,0.65)', backdropFilter:'blur(24px)', borderRadius:'24px', padding:'40px', width:'100%', maxWidth:'500px', border:'1px solid rgba(255,255,255,0.8)', boxShadow:'0 20px 60px rgba(0,0,0,0.08)' }}>
               <div style={{ marginBottom:'24px' }}>
                 <label style={{ display:'block', fontSize:'0.65rem', letterSpacing:'0.18em', color:'#888', fontFamily:"'DM Sans',sans-serif", textTransform:'uppercase', marginBottom:'8px' }}>Flight ID</label>
-                <input className="si" placeholder="E.g. 105, 110..." value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==='Enter' && handleSearch()} />
+                <input className="si" placeholder="E.g. 105, 110..." aria-label="Flight ID" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==='Enter' && handleSearch()} />
               </div>
               <button className="cb" onClick={handleSearch} disabled={loading}>{loading ? 'Checking...' : 'Check Flight Status'}</button>
               {error && <p style={{ marginTop:'16px', textAlign:'center', color:'#c0392b', fontFamily:"'DM Sans',sans-serif", fontSize:'0.85rem' }}>{error}</p>}
               <div style={{ display:'flex', gap:'24px', marginTop:'28px', paddingTop:'24px', borderTop:'1px solid rgba(0,0,0,0.07)' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}><span style={{ opacity:.5 }}>📡</span><span style={{ fontSize:'0.8rem', color:'#888', fontFamily:"'DM Sans',sans-serif" }}>Real-time updates</span></div>
-                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}><span style={{ opacity:.5 }}>🕐</span><span style={{ fontSize:'0.8rem', color:'#888', fontFamily:"'DM Sans',sans-serif" }}>Live gate info</span></div>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}><span style={{ opacity:.5 }}>📡</span><span style={{ fontSize:'0.8rem', color:'#888', fontFamily:"'DM Sans',sans-serif" }}>Stored database status</span></div>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}><span style={{ opacity:.5 }}>🕐</span><span style={{ fontSize:'0.8rem', color:'#888', fontFamily:"'DM Sans',sans-serif" }}>Stored schedule information</span></div>
               </div>
             </div>
 
             <div style={{ display:'flex', justifyContent:'center', gap:'80px', marginTop:'60px', textAlign:'center' }}>
-              {[{icon:'📡',label:'Live Updates'},{icon:'🛫',label:'Gate Alerts'},{icon:'⏱',label:'Delay Info'}].map(f=>(
+              {[{icon:'📡',label:'Stored Status'},{icon:'🛫',label:'Demo Gate'},{icon:'⏱',label:'Demo Details'}].map(f=>(
                 <div key={f.label} style={{ opacity:.4 }}>
                   <div style={{ fontSize:'1.8rem', marginBottom:'8px' }}>{f.icon}</div>
                   <p style={{ fontSize:'0.65rem', letterSpacing:'0.18em', fontFamily:"'DM Sans',sans-serif", textTransform:'uppercase', color:'#666', margin:0 }}>{f.label}</p>
@@ -99,6 +101,7 @@ export default function StatusPage() {
         {/* ── RESULT DASHBOARD ── */}
         {flight && (
           <div className="fu3" style={{ maxWidth:'1100px', margin:'0 auto', padding:'40px 32px' }}>
+            <p role="note">Flight schedule/status comes from the project database. Map, telemetry, weather, gate and countdown panels below are simulated examples, not live operational data.</p>
 
             {/* TOP BAR */}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'28px' }}>
@@ -160,7 +163,7 @@ export default function StatusPage() {
                 </div>
                 <div style={{ position:'absolute', bottom:'20px', right:'20px', display:'flex', gap:'8px' }}>
                   {['+','−'].map(s=>(
-                    <button key={s} style={{ width:'36px', height:'36px', borderRadius:'50%', background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.2)', color:'white', fontSize:'1.1rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)' }}>{s}</button>
+                    <span key={s} style={{ width:'36px', height:'36px', borderRadius:'50%', background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.2)', color:'white', fontSize:'1.1rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)' }}>{s}</span>
                   ))}
                 </div>
               </div>
@@ -191,9 +194,9 @@ export default function StatusPage() {
                   </div>
                   <p style={{ fontSize:'0.95rem', fontWeight:500, color:'white', margin:'0 0 6px', fontFamily:"'DM Sans',sans-serif" }}>Ground Transport</p>
                   <p style={{ fontSize:'0.78rem', color:'rgba(255,255,255,0.45)', margin:'0 0 16px', fontFamily:"'DM Sans',sans-serif", lineHeight:1.6 }}>Book a transfer waiting at the arrival terminal.</p>
-                  <button style={{ width:'100%', background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'white', borderRadius:'10px', padding:'10px', fontSize:'0.68rem', letterSpacing:'0.15em', fontFamily:"'DM Sans',sans-serif", cursor:'pointer', textTransform:'uppercase' }}>
-                    Book Transfer
-                  </button>
+                  <div style={{ width:'100%', background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', color:'white', borderRadius:'10px', padding:'10px', fontSize:'0.68rem', letterSpacing:'0.15em', fontFamily:"'DM Sans',sans-serif", cursor:'pointer', textTransform:'uppercase' }}>
+                    Transfers unavailable
+                  </div>
                 </div>
               </div>
             </div>
@@ -275,7 +278,7 @@ export default function StatusPage() {
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.5, margin: 0 }}>© 2026 FirstFly. Elevate your journey.</p>
         </div>
         <div style={{ display: 'flex', gap: '32px', fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.6 }}>
-          {[['/flights', 'Flights'], ['/bookings', 'Bookings'], ['/checkin', 'Check-in'], ['/status', 'Status']].map(([href, label]) => (
+          {[['/flights', 'Flights'], ['/my_trips', 'Bookings'], ['/checkin', 'Check-in'], ['/status', 'Status']].map(([href, label]) => (
             <Link key={href} href={href} style={{ color: '#f0ebe0', textDecoration: 'none' }}>{label}</Link>
           ))}
         </div>
