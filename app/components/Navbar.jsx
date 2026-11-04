@@ -17,11 +17,13 @@ export default function Navbar() {
     ['/my_trips', 'My Trips'],
   ]
 
-  // Re-read user on every route change
+  // Browser storage is display-only; the server session determines identity.
   useEffect(() => {
-    const stored = localStorage.getItem('firstfly_user')
-    if (stored) setUser(JSON.parse(stored))
-    else setUser(null)
+    let active = true
+    fetch('/api/auth/me').then(r => r.json())
+      .then(data => { if (active) setUser(data.user || null) })
+      .catch(() => { if (active) setUser(null) })
+    return () => { active = false }
   }, [pathname])
 
   // Close dropdown on outside click
@@ -35,8 +37,9 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem('firstfly_user')
+  const handleLogout = async () => {
+    try { const res = await fetch('/api/auth/logout', { method: 'POST' }); if (!res.ok) return } catch { return }
+    try { localStorage.removeItem('firstfly_user') } catch { /* Storage may be disabled. */ }
     setUser(null)
     setDropdownOpen(false)
     router.push('/login')
@@ -177,7 +180,7 @@ export default function Navbar() {
             </Link>
 
             <div ref={dropdownRef} style={{ position: 'relative' }}>
-              <button className="avatar-btn" onClick={() => setDropdownOpen(!dropdownOpen)} title={user?.name || user?.email}>
+              <button aria-label="Account menu" aria-expanded={dropdownOpen} className="avatar-btn" onClick={() => setDropdownOpen(!dropdownOpen)} title={user?.name || user?.email}>
                 {(user?.name || user?.email || '?')[0].toUpperCase()}
               </button>
 

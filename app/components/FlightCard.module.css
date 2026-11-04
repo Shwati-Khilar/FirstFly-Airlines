@@ -1,0 +1,19 @@
+.card { background:#fff; border:1px solid #e6e0d6; border-radius:20px; padding:26px; display:flex; flex-direction:column; min-width:0; box-shadow:0 4px 20px #00000006; font-family:'DM Sans',sans-serif; transition:box-shadow .2s; }
+.card:hover { box-shadow:0 12px 32px #0000000c; }
+.header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; min-height:58px; }
+.header h2 { font-size:1.15rem; font-weight:600; color:#1a1a1a; line-height:1.4; margin:4px 0 0; }
+.eyebrow { margin:0; font-size:.65rem; color:#716a60; letter-spacing:.1em; text-transform:uppercase; }
+.number { white-space:nowrap; border-radius:30px; padding:7px 10px; background:#f0ebe0; color:#655e54; font-size:.72rem; font-variant-numeric:tabular-nums; }
+.route { margin-top:24px; display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.endpoint { min-width:0; }
+.endpoint + .endpoint { border-left:1px solid #eee8df; padding-left:20px; }
+.code { font-size:2rem; font-weight:600; letter-spacing:-.04em; margin:8px 0 2px; line-height:1.15; color:#1a1a1a; }
+.city { margin:0 0 20px; font-size:.75rem; color:#716a60; overflow-wrap:anywhere; min-height:1.5em; }
+.date { margin:0 0 6px; font-size:.76rem; white-space:nowrap; color:#716a60; }
+.time { margin:0; font-size:1.2rem; white-space:nowrap; font-weight:500; font-variant-numeric:tabular-nums; color:#1a1a1a; }
+.zone { margin:18px 0 22px; font-size:.64rem; color:#857c70; }
+.footer { margin-top:auto; display:flex; justify-content:space-between; gap:12px; align-items:center; border-top:1px solid #eee8df; padding-top:20px; }
+.price { margin:4px 0 0; font-size:1.4rem; font-weight:600; white-space:nowrap; color:#1a1a1a; }
+.book { display:inline-flex; gap:18px; align-items:center; background:#1a1a1a; color:#f0ebe0; padding:12px 20px; border-radius:30px; font-size:.8rem; text-decoration:none; white-space:nowrap; }
+.book:hover { background:#37332d; }
+@media(max-width:380px) { .card{padding:20px} .route{gap:12px} .endpoint + .endpoint{padding-left:12px} .time{font-size:1.05rem} .book{padding:12px 16px;gap:10px} }

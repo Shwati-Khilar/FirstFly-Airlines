@@ -36,3 +36,19 @@ input,
 select {
   font: inherit;
 }
+
+/* Preserve desktop composition while allowing narrow screens and keyboard use. */
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid #685632; outline-offset: 3px;
+}
+@media (max-width: 700px) {
+  nav { flex-wrap: wrap; gap: 16px; padding: 16px !important; }
+  .booking-layout { grid-template-columns: 1fr !important; padding: 24px 16px !important; }
+  .booking-layout > div { padding: 20px 0 !important; border-right: 0 !important; }
+  .ticket-wrapper { flex-direction: column; }
+  .ticket-wrapper > div { width: 100% !important; padding: 24px !important; }
+  .trip-card { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

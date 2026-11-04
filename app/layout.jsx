@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "FirstFly Airways",
   description:
-    "A full-stack airline booking platform with real-time seat locking, secure payments, QR boarding passes, and online check-in.",
+    "An airline booking demonstration with transactional seat reservations, verified payments, and authenticated booking confirmations.",
 };
 
 export default function RootLayout({ children }) {

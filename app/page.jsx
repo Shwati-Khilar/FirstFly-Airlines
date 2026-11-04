@@ -7,9 +7,11 @@ export default function Home() {
   const router = useRouter()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  const [date, setDate] = useState('')
 
-  const handleSearch = () => {
-    if (from && to) router.push(`/flights?from=${from}&to=${to}`)
+  const handleSearch = (event) => {
+    event.preventDefault()
+    router.push('/flights?' + new URLSearchParams({from: from.trim(), to: to.trim(), date}))
   }
 
   return (
@@ -41,7 +43,7 @@ export default function Home() {
             FirstFly <span style={{ fontWeight: 300 }}>Airways</span>
           </div>
           <div style={{ display: 'flex', gap: '36px', fontSize: '0.85rem', letterSpacing: '0.1em', fontFamily: "'DM Sans', sans-serif" }}>
-            {[['/', 'Home'], ['/flights', 'Flights'], ['/bookings', 'Bookings'], ['/checkin', 'Check-in'], ['/status', 'Status']].map(([href, label]) => (
+            {[['/', 'Home'], ['/flights', 'Flights'], ['/my_trips', 'Bookings'], ['/checkin', 'Check-in'], ['/status', 'Status']].map(([href, label]) => (
               <Link key={href} href={href} className="nav-link" style={{ color: '#1a1a1a', textDecoration: 'none', transition: 'opacity 0.2s' }}>{label}</Link>
             ))}
           </div>
@@ -88,7 +90,7 @@ export default function Home() {
         {/* SEARCH BOX */}
         <div className="fade-in" style={{ position: 'relative', zIndex: 10, margin: '40px 60px 60px', background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', borderRadius: '20px', padding: '28px 36px', boxShadow: '0 8px 40px rgba(0,0,0,0.08)', border: '1px solid rgba(255,255,255,0.9)' }}>
 
-          <div style={{ display: 'flex', gap: '0', alignItems: 'center', fontFamily: "'DM Sans', sans-serif" }}>
+          <form onSubmit={handleSearch} style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', fontFamily: "'DM Sans', sans-serif" }}>
 
             <div style={{ flex: 1, borderRight: '1px solid #ddd', paddingRight: '24px' }}>
               <div style={{ fontSize: '0.7rem', letterSpacing: '0.15em', color: '#888', marginBottom: '6px', textTransform: 'uppercase' }}>✈ From</div>
@@ -96,14 +98,14 @@ export default function Home() {
                 className="search-input"
                 value={from}
                 onChange={e => setFrom(e.target.value)}
-                placeholder="Origin city"
+                aria-label="Origin city" placeholder="Origin city"
                 style={{ width: '100%', border: 'none', borderBottom: '1px solid #ccc', background: 'transparent', fontSize: '1.1rem', padding: '4px 0', color: '#1a1a1a', transition: 'border 0.2s' }}
               />
             </div>
 
             <div style={{ width: '48px', display: 'flex', justifyContent: 'center' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', cursor: 'pointer' }}
-                onClick={() => { setFrom(to); setTo(from) }}>⇄</div>
+              <button aria-label="Swap origin and destination" type="button" style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', cursor: 'pointer' }}
+                onClick={() => { setFrom(to); setTo(from) }}>⇄</button>
             </div>
 
             <div style={{ flex: 1, borderRight: '1px solid #ddd', paddingLeft: '24px', paddingRight: '24px' }}>
@@ -112,14 +114,17 @@ export default function Home() {
                 className="search-input"
                 value={to}
                 onChange={e => setTo(e.target.value)}
-                placeholder="Destination city"
+                aria-label="Destination city" placeholder="Destination city"
                 style={{ width: '100%', border: 'none', borderBottom: '1px solid #ccc', background: 'transparent', fontSize: '1.1rem', padding: '4px 0', color: '#1a1a1a', transition: 'border 0.2s' }}
               />
             </div>
 
+            <label style={{paddingLeft:24,fontSize:'.8rem'}}>Travel date
+              <input aria-label="Travel date" type="date" required value={date} onChange={e=>setDate(e.target.value)} style={{display:'block',background:'transparent',borderBottom:'1px solid #ccc',padding:'8px 0'}} />
+            </label>
             <div style={{ paddingLeft: '24px' }}>
               <button
-                onClick={handleSearch}
+                type="submit"
                 className="book-btn"
                 style={{ background: '#1a1a1a', color: '#f0ebe0', padding: '14px 32px', borderRadius: '100px', border: 'none', cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap', transition: 'all 0.2s', letterSpacing: '0.05em' }}
               >
@@ -127,7 +132,7 @@ export default function Home() {
               </button>
             </div>
 
-          </div>
+          </form>
         </div>
       </div>
 
@@ -166,7 +171,7 @@ export default function Home() {
             { city: 'Bangalore', img: 'https://images.unsplash.com/photo-1596176530529-78163a4f7af2?w=400&q=80' },
             { city: 'Chennai', img: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?w=400&q=80' },
           ].map(d => (
-            <div key={d.city} className="dest-card" style={{ borderRadius: '16px', overflow: 'hidden', background: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.07)', cursor: 'pointer' }}
+            <div role="link" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.click() }} key={d.city} className="dest-card" style={{ borderRadius: '16px', overflow: 'hidden', background: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.07)', cursor: 'pointer' }}
               onClick={() => router.push(`/flights?to=${d.city}`)}>
               <div style={{ overflow: 'hidden', height: '180px' }}>
                 <img src={d.img} alt={d.city} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }} />
@@ -189,7 +194,7 @@ export default function Home() {
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.5 }}>© 2026 FirstFly. Elevate your journey.</p>
         </div>
         <div style={{ display: 'flex', gap: '32px', fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', opacity: 0.6 }}>
-          {[['/flights', 'Flights'], ['/bookings', 'Bookings'], ['/checkin', 'Check-in']].map(([href, label]) => (
+          {[['/flights', 'Flights'], ['/my_trips', 'Bookings'], ['/checkin', 'Check-in']].map(([href, label]) => (
             <Link key={href} href={href} style={{ color: '#f0ebe0', textDecoration: 'none' }}>{label}</Link>
           ))}
         </div>

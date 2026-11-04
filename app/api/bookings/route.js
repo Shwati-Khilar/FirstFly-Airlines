@@ -1,12 +1,10 @@
 import db from '@/lib/db'
+import { createAuth } from '@/lib/auth'
+import { errorResponse } from '@/lib/http'
 
 export async function GET(req) {
-  const { searchParams } = new URL(req.url)
-  const userId = searchParams.get('userId')
-
-  if (!userId || userId === 'undefined') {
-  return Response.json({ bookings: [] })
-}
+  try {
+  const { id: userId } = await createAuth(db).requireUser(req)
 
   const [rows] = await db.query(
   `SELECT 
@@ -29,5 +27,6 @@ export async function GET(req) {
   ORDER BY p.id DESC`,
   [userId]
 )
-  return Response.json({ bookings: rows })
+  return Response.json({ bookings: rows }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (err) { return errorResponse(err) }
 }
